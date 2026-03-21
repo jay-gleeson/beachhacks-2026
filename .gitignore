@@ -209,3 +209,6 @@ __marimo__/
 # Fetch.ai agent keys
 private_keys.json
 **/private_keys.json
+
+# local file
+local/
