@@ -21,3 +21,5 @@ class SharedAgentState(Model):
     query: str
     user_sender_address: str
     result: str = ""
+    pipeline_stage: str = "" # track next agent in the pipeline: User (ASI:One) → Orchestrator → SpotifyAgent → TasteAgent → ContextAgent → DiscoveryAgent → PlaylistAgent → User
+    pipeline_data: str = "{}" # json string that accumulates data from each agent in the pipeline

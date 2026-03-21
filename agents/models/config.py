@@ -4,9 +4,17 @@ from uagents_core.identity import Identity
 
 load_dotenv(find_dotenv())
 
-ALICE_SEED = os.getenv("ALICE_SEED_PHRASE")
-BOB_SEED = os.getenv("BOB_SEED_PHRASE")
 ORCHESTRATOR_SEED = os.getenv("ORCHESTRATOR_SEED_PHRASE")
+SPOTIFY_SEED = os.getenv("SPOTIFY_SEED_PHRASE")
+TASTE_SEED = os.getenv("TASTE_SEED_PHRASE")
+CONTEXT_SEED = os.getenv("CONTEXT_SEED_PHRASE")
+DISCOVERY_SEED = os.getenv("DISCOVERY_SEED_PHRASE")
+PLAYLIST_SEED = os.getenv("PLAYLIST_SEED_PHRASE")
 
-ALICE_ADDRESS = Identity.from_seed(seed=ALICE_SEED, index=0).address
-BOB_ADDRESS = Identity.from_seed(seed=BOB_SEED, index=0).address
+SPOTIFY_TOKEN = os.getenv("SPOTIFY_TOKEN")
+
+SPOTIFY_ADDRESS = Identity.from_seed(seed=SPOTIFY_SEED, index=0).address
+TASTE_ADDRESS = Identity.from_seed(seed=TASTE_SEED, index=0).address
+CONTEXT_ADDRESS = Identity.from_seed(seed=CONTEXT_SEED, index=0).address
+DISCOVERY_ADDRESS = Identity.from_seed(seed=DISCOVERY_SEED, index=0).address
+PLAYLIST_ADDRESS = Identity.from_seed(seed=PLAYLIST_SEED, index=0).address
