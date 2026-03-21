@@ -37,21 +37,17 @@ MOCK_PROFILE = {
 def get_real_profile(token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
 
-    print(f"[DEBUG] Using token: {token[:20]}...")
-
     artists_res = requests.get(
         "https://api.spotify.com/v1/me/top/artists",
         headers=headers,
         params={"limit": 5},
     ).json()
-    print(f"[DEBUG] Artists response: {json.dumps(artists_res, indent=2)[:500]}")
 
     tracks_res = requests.get(
         "https://api.spotify.com/v1/me/top/tracks",
         headers=headers,
         params={"limit": 5},
     ).json()
-    print(f"[DEBUG] Tracks response: {json.dumps(tracks_res, indent=2)[:500]}")
 
     top_artists = [a["name"] for a in artists_res["items"]]
     top_artist_ids = [a["id"] for a in artists_res["items"]]

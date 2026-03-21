@@ -12,6 +12,7 @@ DISCOVERY_SEED = os.getenv("DISCOVERY_SEED_PHRASE")
 PLAYLIST_SEED = os.getenv("PLAYLIST_SEED_PHRASE")
 
 SPOTIFY_TOKEN = os.getenv("SPOTIFY_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 SPOTIFY_ADDRESS = Identity.from_seed(seed=SPOTIFY_SEED, index=0).address
 TASTE_ADDRESS = Identity.from_seed(seed=TASTE_SEED, index=0).address
