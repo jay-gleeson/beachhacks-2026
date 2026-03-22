@@ -92,7 +92,7 @@ def playlist_workflow(state: SharedAgentState) -> SharedAgentState:
 
     if track_uris:
         try:
-            sp = get_spotify_client()
+            sp = get_spotify_client(user_address=state.user_sender_address)
             print(f"[DEBUG] Spotify client: {'OK' if sp else 'None'}")
             if sp:
                 # Verify token scopes
