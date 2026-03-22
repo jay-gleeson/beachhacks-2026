@@ -34,10 +34,10 @@ MOCK_PROFILE = {
 
 def spotify_workflow(state: SharedAgentState) -> SharedAgentState:
     try:
-        sp = get_spotify_client()
+        sp = get_spotify_client(user_address=state.user_sender_address)
         if sp:
-            artists = get_user_top_artists(sp)
-            top_tracks = get_user_top_tracks(sp)
+            artists = get_user_top_artists(sp, limit=15)
+            top_tracks = get_user_top_tracks(sp, limit=50)
             profile = {
                 "top_artists": [a["name"] for a in artists],
                 "top_artist_ids": [a["id"] for a in artists],
