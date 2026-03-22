@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from uagents import Context, Protocol
-from agents.models.config import ALICE_ADDRESS, BOB_ADDRESS
+from agents.models.config import SPOTIFY_ADDRESS
 from agents.models.models import SharedAgentState
 from agents.services.state_service import state_service
 from uagents_core.contrib.protocols.chat import (
@@ -36,34 +36,16 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
             chat_session_id=chat_session_id,
             query=text,
             user_sender_address=sender,
+            pipeline_stage="spotify",
         )
         state_service.set_state(chat_session_id, state)
     else:
         state.query = text
+        state.pipeline_stage = "spotify"
 
-    response = None
-
-    if "alice" in text.lower():
-        await ctx.send(ALICE_ADDRESS, state)
-        ctx.logger.info("Routing to Alice!")
-    elif "bob" in text.lower():
-        await ctx.send(BOB_ADDRESS, state)
-        ctx.logger.info("Routing to Bob!")
-    else:
-        response = "Mention Alice or Bob in your message and I'll route it to them."
-
-    if response:
-        await ctx.send(
-            sender,
-            ChatMessage(
-                timestamp=datetime.now(tz=timezone.utc),
-                msg_id=uuid4(),
-                content=[
-                    TextContent(type="text", text=response),
-                    EndSessionContent(type="end-session"),
-                ],
-            ),
-        )
+    # Start the pipeline — send to SpotifyAgent
+    await ctx.send(SPOTIFY_ADDRESS, state)
+    ctx.logger.info("Pipeline started — routing to SpotifyAgent")
 
 
 @chat_proto.on_message(ChatAcknowledgement)
