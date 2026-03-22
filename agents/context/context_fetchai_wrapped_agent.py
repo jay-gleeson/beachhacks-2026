@@ -27,15 +27,17 @@ Respond with ONLY valid JSON, no markdown, no code blocks. Use this exact format
   "activity": "one of: studying, working out, driving, sleeping, cooking, hanging out, party, working, listening",
   "requested_artists": ["list of specific artist names mentioned, empty if none"],
   "requested_genre": "specific genre/style if mentioned (e.g. edm, jazz, country, rock, rap), empty string if none",
+  "playlist_name": "custom playlist name if the user specified one, empty string if none",
   "track_count": number between 1-50 (default 10 if not specified)
 }}
 
 Examples:
-- "give me a chill playlist" -> {{"mood": "chill", "activity": "listening", "requested_artists": [], "requested_genre": "", "track_count": 10}}
-- "I want Frank Ocean and Tyler the Creator songs" -> {{"mood": "chill", "activity": "listening", "requested_artists": ["Frank Ocean", "Tyler the Creator"], "requested_genre": "", "track_count": 10}}
-- "15 hype workout songs by Drake" -> {{"mood": "hype", "activity": "working out", "requested_artists": ["Drake"], "requested_genre": "", "track_count": 15}}
-- "get me a playlist of edm songs" -> {{"mood": "hype", "activity": "listening", "requested_artists": [], "requested_genre": "edm", "track_count": 10}}
-- "jazz vibes for cooking" -> {{"mood": "chill", "activity": "cooking", "requested_artists": [], "requested_genre": "jazz", "track_count": 10}}"""
+- "give me a chill playlist" -> {{"mood": "chill", "activity": "listening", "requested_artists": [], "requested_genre": "", "playlist_name": "", "track_count": 10}}
+- "I want Frank Ocean and Tyler the Creator songs" -> {{"mood": "chill", "activity": "listening", "requested_artists": ["Frank Ocean", "Tyler the Creator"], "requested_genre": "", "playlist_name": "", "track_count": 10}}
+- "15 hype workout songs by Drake" -> {{"mood": "hype", "activity": "working out", "requested_artists": ["Drake"], "requested_genre": "", "playlist_name": "", "track_count": 15}}
+- "get me a playlist of edm songs" -> {{"mood": "hype", "activity": "listening", "requested_artists": [], "requested_genre": "edm", "playlist_name": "", "track_count": 10}}
+- "make a playlist called Summer Vibes with indie music" -> {{"mood": "chill", "activity": "listening", "requested_artists": [], "requested_genre": "indie", "playlist_name": "Summer Vibes", "track_count": 10}}
+- "20 songs named indiana songs! that is indie" -> {{"mood": "chill", "activity": "listening", "requested_artists": [], "requested_genre": "indie", "playlist_name": "indiana songs!", "track_count": 20}}"""
 
 MOOD_KEYWORDS = {
     "chill": ["chill", "relax", "calm", "mellow", "laid back", "easy", "peaceful", "soft"],

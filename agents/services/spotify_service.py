@@ -115,17 +115,25 @@ def get_user_top_tracks(sp: spotipy.Spotify, limit: int = 5) -> list[str]:
 
 
 def search_tracks(sp: spotipy.Spotify, query: str, limit: int = 10) -> list[dict]:
-    """Search for tracks on Spotify."""
-    results = sp.search(q=query, type="track", limit=limit)
-    return [
-        {
-            "title": t["name"],
-            "artist": t["artists"][0]["name"],
-            "album": t["album"]["name"],
-            "uri": t["uri"],
-        }
-        for t in results["tracks"]["items"]
-    ]
+    """Search for tracks on Spotify. Handles the 10-per-request API limit."""
+    MAX_PER_REQUEST = 10
+    all_tracks = []
+
+    for offset in range(0, limit, MAX_PER_REQUEST):
+        batch_limit = min(MAX_PER_REQUEST, limit - offset)
+        results = sp.search(q=query, type="track", limit=batch_limit, offset=offset)
+        for t in results["tracks"]["items"]:
+            all_tracks.append({
+                "title": t["name"],
+                "artist": t["artists"][0]["name"],
+                "album": t["album"]["name"],
+                "uri": t["uri"],
+            })
+        # Stop if we got fewer than requested (no more results)
+        if len(results["tracks"]["items"]) < batch_limit:
+            break
+
+    return all_tracks
 
 
 def create_playlist(sp: spotipy.Spotify, name: str, description: str = "") -> str:

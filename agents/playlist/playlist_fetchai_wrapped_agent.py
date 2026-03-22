@@ -81,7 +81,8 @@ def playlist_workflow(state: SharedAgentState) -> SharedAgentState:
 
     mood = context.get("mood", "chill")
     activity = context.get("activity", "listening")
-    playlist_name = get_playlist_name(mood, activity)
+    custom_name = context.get("playlist_name", "")
+    playlist_name = custom_name if custom_name else get_playlist_name(mood, activity)
 
     # Try to create the playlist on Spotify
     spotify_url = None
