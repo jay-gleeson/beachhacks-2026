@@ -77,9 +77,86 @@ class HealthResponse(Model):
     status: str
 
 
+class GenerateRequest(Model):
+    query: str
+    user_address: str = ""
+
+
+class GenerateResponse(Model):
+    playlist_name: str
+    tracks: list[dict]
+    result: str
+    spotify_url: str
+
+
 @orchestrator.on_rest_get("/health", HealthResponse)
 async def health(ctx: Context) -> HealthResponse:
     return HealthResponse(status="ok healthy")
+
+
+@orchestrator.on_rest_post("/generate", GenerateRequest, GenerateResponse)
+async def generate(ctx: Context, req: GenerateRequest) -> GenerateResponse:
+    """
+    REST endpoint for the frontend. Runs the full pipeline synchronously.
+
+    POST http://localhost:8003/generate
+    {"query": "make me a chill playlist for studying", "user_address": "optional_user_id"}
+    """
+    from agents.spotify.spotify_fetchai_wrapped_agent import spotify_workflow
+    from agents.taste.taste_fetchai_wrapped_agent import taste_workflow
+    from agents.context.context_fetchai_wrapped_agent import context_workflow
+    from agents.discovery.discovery_fetchai_wrapped_agent import discovery_workflow
+    from agents.playlist.playlist_fetchai_wrapped_agent import playlist_workflow
+
+    ctx.logger.info(f"REST /generate: {req.query}")
+
+    user_address = req.user_address or "rest-user"
+
+    state = SharedAgentState(
+        chat_session_id=f"rest-{uuid4()}",
+        query=req.query,
+        user_sender_address=user_address,
+    )
+
+    # Use LLM to decide initial route
+    first_agent = None
+    try:
+        from agents.orchestrator.chat_protocol import decide_initial_agent
+        first_agent = decide_initial_agent(req.query)
+    except Exception:
+        first_agent = "spotify"
+
+    # Run the pipeline based on what's needed
+    if first_agent == "spotify":
+        state = spotify_workflow(state)
+        state = taste_workflow(state)
+
+    state = context_workflow(state)
+    state = discovery_workflow(state)
+    state = playlist_workflow(state)
+
+    # Extract structured data from pipeline
+    import json as _json
+    data = _json.loads(state.pipeline_data)
+    recommendations = data.get("recommendations", [])
+    context_data = data.get("context", {})
+
+    # Find spotify URL if it was created
+    spotify_url = ""
+    if "open.spotify.com" in state.result:
+        for line in state.result.split("\n"):
+            if "open.spotify.com" in line:
+                spotify_url = line.strip().split(" ")[-1]
+                break
+
+    playlist_name = context_data.get("playlist_name", "") or "Playlist"
+
+    return GenerateResponse(
+        playlist_name=playlist_name,
+        tracks=recommendations,
+        result=state.result,
+        spotify_url=spotify_url,
+    )
 
 
 # Track which agents have run per session to prevent loops
