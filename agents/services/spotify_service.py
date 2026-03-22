@@ -121,7 +121,7 @@ def search_tracks(sp: spotipy.Spotify, query: str, limit: int = 10) -> list[dict
 
     for offset in range(0, limit, MAX_PER_REQUEST):
         batch_limit = min(MAX_PER_REQUEST, limit - offset)
-        results = sp.search(q=query, type="track", limit=batch_limit, offset=offset)
+        results = sp.search(q=query, type="track", limit=batch_limit, offset=offset, market="US")
         for t in results["tracks"]["items"]:
             all_tracks.append({
                 "title": t["name"],

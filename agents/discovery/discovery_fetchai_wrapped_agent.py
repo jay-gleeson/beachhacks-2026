@@ -20,7 +20,9 @@ def discover_tracks(top_artists: list[str], taste: dict, context: dict, track_co
     """Search Spotify for tracks based on the user's taste and requested mood."""
     sp = get_spotify_client(user_address=user_address)
     if not sp:
+        print(f"[DEBUG] No Spotify client available for user {user_address}")
         return []
+    print(f"[DEBUG] Got Spotify client for user")
 
     mood = context.get("mood", "chill")
     genres = taste.get("all_genres", [])
@@ -97,14 +99,20 @@ def discovery_workflow(state: SharedAgentState) -> SharedAgentState:
 
     recommendations = []
 
+    print(f"[DEBUG] Discovery input: top_artists={top_artists[:3]}..., requested_artists={context.get('requested_artists', [])}, requested_genre={context.get('requested_genre', '')}, mood={context.get('mood', '')}, track_count={track_count}")
+    print(f"[DEBUG] User address: {state.user_sender_address}")
+
     try:
-        if top_artists:
-            recommendations = discover_tracks(top_artists, taste, context, track_count, state.user_sender_address)
+        recommendations = discover_tracks(top_artists, taste, context, track_count, state.user_sender_address)
+        print(f"[DEBUG] discover_tracks returned {len(recommendations)} tracks")
     except Exception as e:
         print(f"Discovery failed, falling back to mock: {e}")
+        import traceback
+        traceback.print_exc()
 
     # Fallback to mock songs if we got nothing
     if not recommendations:
+        print(f"[DEBUG] No recommendations found, using mock data")
         pool = list(MOCK_SONGS)
         random.shuffle(pool)
         recommendations = pool[:track_count]
