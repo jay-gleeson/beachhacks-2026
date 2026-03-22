@@ -213,3 +213,5 @@ private_keys.json
 
 # local file
 local/
+
+spotify_tokens.json
