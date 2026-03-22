@@ -1,7 +1,7 @@
 """
 Spotify helper functions using spotipy SDK.
-Centralizes all Spotify API interactions.
-Auto-refreshes token when expired.
+Supports per-user tokens with auto-refresh.
+Falls back to the global .env token if no per-user token exists.
 """
 
 import base64
@@ -13,37 +13,23 @@ import requests as http_requests
 import spotipy
 from dotenv import load_dotenv
 
-ENV_PATH = Path(__file__).parent.parent.parent / ".env"
+from agents.services.token_store import get_user_tokens, update_access_token
 
-# Load fresh env vars
+ENV_PATH = Path(__file__).parent.parent.parent / ".env"
 load_dotenv(ENV_PATH, override=True)
 
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-_current_token = os.getenv("SPOTIFY_TOKEN")
+# Fallback global token from .env (for your own account / demo)
+_global_token = os.getenv("SPOTIFY_TOKEN")
+_global_refresh = os.getenv("SPOTIFY_REFRESH_TOKEN")
+
+AUTH_SERVER_URL = "http://127.0.0.1:9999"
 
 
-def _save_to_env(key: str, value: str) -> None:
-    """Update or add a key=value in the .env file."""
-    env_text = ENV_PATH.read_text()
-    pattern = rf"^{re.escape(key)}=.*$"
-    if re.search(pattern, env_text, flags=re.MULTILINE):
-        env_text = re.sub(pattern, f"{key}={value}", env_text, flags=re.MULTILINE)
-    else:
-        env_text = env_text.rstrip() + f"\n{key}={value}\n"
-    ENV_PATH.write_text(env_text)
-
-
-def _refresh_token() -> str | None:
-    """Use the refresh token to get a new access token."""
-    global _current_token
-
-    refresh_token = os.getenv("SPOTIFY_REFRESH_TOKEN")
-    if not refresh_token:
-        print("[spotify_service] No refresh token available")
-        return None
-
+def _refresh_token(refresh_token: str) -> str | None:
+    """Use a refresh token to get a new access token."""
     auth_header = base64.b64encode(
         f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()
     ).decode()
@@ -58,36 +44,61 @@ def _refresh_token() -> str | None:
     ).json()
 
     if "access_token" in response:
-        _current_token = response["access_token"]
-        _save_to_env("SPOTIFY_TOKEN", _current_token)
-        if "refresh_token" in response:
-            _save_to_env("SPOTIFY_REFRESH_TOKEN", response["refresh_token"])
-        print("[spotify_service] Token refreshed successfully")
-        return _current_token
-
+        return response["access_token"]
     print(f"[spotify_service] Token refresh failed: {response}")
     return None
 
 
-def get_spotify_client() -> spotipy.Spotify | None:
-    global _current_token
+def get_auth_url(user_address: str) -> str:
+    """Get the URL to send a user to connect their Spotify."""
+    return f"{AUTH_SERVER_URL}/login?user={user_address}"
 
-    if not _current_token:
+
+def get_spotify_client(user_address: str = "") -> spotipy.Spotify | None:
+    """Get a Spotify client for a specific user, or fall back to global token."""
+    global _global_token
+
+    token = None
+    refresh = None
+
+    # Try per-user token first
+    if user_address:
+        user_tokens = get_user_tokens(user_address)
+        if user_tokens:
+            token = user_tokens["access_token"]
+            refresh = user_tokens["refresh_token"]
+
+    # Fall back to global token
+    if not token:
+        token = _global_token
+        refresh = _global_refresh
+
+    if not token:
         return None
 
-    sp = spotipy.Spotify(auth=_current_token)
+    sp = spotipy.Spotify(auth=token)
 
     # Test if token is still valid
     try:
         sp.current_user()
         return sp
     except spotipy.exceptions.SpotifyException as e:
-        if e.http_status == 401:
-            print("[spotify_service] Token expired, attempting refresh...")
-            new_token = _refresh_token()
+        if e.http_status == 401 and refresh:
+            print("[spotify_service] Token expired, refreshing...")
+            new_token = _refresh_token(refresh)
             if new_token:
+                # Save refreshed token
+                if user_address and get_user_tokens(user_address):
+                    update_access_token(user_address, new_token)
+                else:
+                    _global_token = new_token
                 return spotipy.Spotify(auth=new_token)
         return None
+
+
+def has_user_token(user_address: str) -> bool:
+    """Check if a user has connected their Spotify."""
+    return get_user_tokens(user_address) is not None
 
 
 def get_user_top_artists(sp: spotipy.Spotify, limit: int = 5) -> list[dict]:
@@ -119,11 +130,11 @@ def search_tracks(sp: spotipy.Spotify, query: str, limit: int = 10) -> list[dict
 
 def create_playlist(sp: spotipy.Spotify, name: str, description: str = "") -> str:
     """Create a playlist using POST /me/playlists. Returns the playlist ID."""
-    global _current_token
+    token = sp._auth if hasattr(sp, '_auth') else _global_token
     res = http_requests.post(
         "https://api.spotify.com/v1/me/playlists",
         headers={
-            "Authorization": f"Bearer {_current_token}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         },
         json={
