@@ -1,4 +1,4 @@
-# Playlist Curator
+# FETCH-TIFY
 
 An AI-powered multi-agent system that creates personalized Spotify playlists through natural conversation. Built on the Fetch.ai uagents framework, accessible via ASI:One chat.
 
