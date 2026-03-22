@@ -1,82 +1,144 @@
-# fetch-help
+# Playlist Curator
 
-A multi-agent system using the Fetch.ai framework with an orchestrator that routes messages to specialized agents (Alice and Bob).
+An AI-powered multi-agent system that creates personalized Spotify playlists through natural conversation. Built on the Fetch.ai uagents framework, accessible via ASI:One chat.
 
-# Architecture 
-![architecture.png](docs/architecture.png)
+## How It Works
 
+A user chats with the orchestrator on ASI:One. The orchestrator — powered by an LLM — decides which specialized agents to involve based on the request. Each agent handles one part of the playlist creation process:
 
-## Setup - Video Walkthrough
-https://youtu.be/FPsl3cSIGQw
+```
+User: "make me a chill playlist for studying"
 
+Orchestrator (LLM-powered)
+    |
+    |-- decides: need user's taste --> SpotifyAgent
+    |-- decides: analyze taste     --> TasteAgent
+    |-- decides: parse request     --> ContextAgent
+    |-- decides: find songs        --> DiscoveryAgent
+    |-- decides: build playlist    --> PlaylistAgent
+    |
+    v
+User gets a playlist + it's created on their Spotify account
+```
 
-## Setup - Docs
+The orchestrator doesn't follow a fixed pipeline — it reasons about each request:
+- "make me a playlist based on my taste" -> runs all 5 agents
+- "give me Frank Ocean and Tyler the Creator songs" -> skips Spotify/Taste, goes straight to Context -> Discovery -> Playlist
+- "edm playlist" -> skips Spotify/Taste, searches by genre
 
+## Agents
 
-### 1. Configure environment
+| Agent | Role | Port |
+|-------|------|------|
+| **Orchestrator** | LLM-powered router, decides which agents to call and in what order | 8003 |
+| **SpotifyAgent** | Fetches user's top 15 artists and top 50 tracks from Spotify | 8004 |
+| **TasteAgent** | Uses LLM to analyze the user's listening profile — genres, energy, vibe | 8005 |
+| **ContextAgent** | Uses LLM to parse the user's request — mood, activity, genre, artists, playlist name, track count | 8006 |
+| **DiscoveryAgent** | Searches Spotify for tracks based on taste + context, with artist-level filtering | 8007 |
+| **PlaylistAgent** | Formats the playlist and creates it on the user's Spotify account | 8008 |
+| **Auth Server** | Handles per-user Spotify OAuth so each user connects their own account | 9999 |
+
+## Setup
+
+### 1. Prerequisites
+- Python 3.12
+- A Spotify Developer app (https://developer.spotify.com/dashboard)
+- An OpenAI API key
+- An Agentverse account (https://agentverse.ai)
+- An ASI:One account (https://asi1.ai)
+
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set a unique seed phrase for each agent. Seed phrases should be random strings with no spaces (tip: just mash your keyboard):
-
+Fill in your `.env`:
 ```
-ALICE_SEED_PHRASE=your_random_seed_here
-BOB_SEED_PHRASE=your_random_seed_here
-ORCHESTRATOR_SEED_PHRASE=your_random_seed_here
+ORCHESTRATOR_SEED_PHRASE=<random string>
+SPOTIFY_SEED_PHRASE=<random string>
+TASTE_SEED_PHRASE=<random string>
+CONTEXT_SEED_PHRASE=<random string>
+DISCOVERY_SEED_PHRASE=<random string>
+PLAYLIST_SEED_PHRASE=<random string>
+
+SPOTIFY_CLIENT_ID=<from Spotify Developer Dashboard>
+SPOTIFY_CLIENT_SECRET=<from Spotify Developer Dashboard>
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:9999/callback
+OPENAI_API_KEY=<your key>
 ```
 
-### 2. Create virtual environment and install dependencies
+### 3. Install dependencies
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r agents/requirements.txt
+pip install spotipy openai google-genai
 ```
 
-### 3. Start the agents
+### 4. Authenticate with Spotify (first time only)
 
-Each agent runs in its own terminal:
+```bash
+.venv/bin/python get_spotify_token.py
+```
+
+This opens your browser, you log into Spotify, and the token + refresh token auto-save to `.env`. The refresh token doesn't expire, so future runs auto-refresh without the browser.
+
+### 5. Start all agents
+
+Each agent runs in its own terminal from the project root:
 
 ```bash
 make orchestrator
+make spotify
+make taste
+make context
+make discovery
+make playlist
+make auth
 ```
 
-```bash
-make alice
-```
+### 6. Connect to ASI:One
 
-```bash
-make bob
-```
-
-## Testing via Agent Inspector
-1. Sign up or sign in to your account on https://agentverse.ai and https://asi1.ai/
-![step_0_sign_in.png](docs/step_0_sign_in.png)
-![step_0b_sign_in_asi1.png](docs/step_0b_sign_in_asi1.png)
-1. Open **all three** agent inspectors in your browser **after** you've signed in
-![step_1_open_inspector.png](docs/step_1_open_inspector.png)
+1. Open each agent's inspector URL (printed in the terminal when it starts)
 2. Click **Connect** on each one
-![step_2_connect.png](docs/step_2_connect.png)
-3. Select **Mailbox** on each one
-![step_3_select_mailbox.png](docs/step_3_select_mailbox.png)
-4. On the **Orchestrator** inspector, click **Go to Agent Profile**
-![step_4_agent_profile.png](docs/step_4_agent_profile.png)
+3. Select **Mailbox**
+4. On the orchestrator's inspector, click **Go to Agent Profile**
 5. Click **Chat with Agent**
-![step_5_chat_with_agent.png](docs/step_5_chat_with_agent.png)
 
-### Example messages to try
-
-```
-i want to speak to alice
-```
+## Example Prompts
 
 ```
-i want to speak to bob
+make me a chill playlist for studying
 ```
 
 ```
-hi
+give me 20 hype workout songs
 ```
-![step_6_example_messages.png](docs/step_6_example_messages.png)
+
+```
+create a playlist of Frank Ocean and Tyler the Creator named "vibez"
+```
+
+```
+edm playlist, 15 songs, named "rave mode"
+```
+
+```
+generate a sad playlist based on my music taste
+```
+
+## Tech Stack
+
+- **Fetch.ai uagents** — agent framework, Agentverse registration, ASI:One chat
+- **Spotify Web API** — user profiles, track search, playlist creation
+- **OpenAI GPT-4o-mini** — orchestrator routing, taste analysis, context parsing
+- **spotipy** — Spotify SDK
+- **Python 3.12**
+
+## Architecture Highlights
+
+- **Agentic orchestration**: The orchestrator uses an LLM to decide which agents to call, not a hardcoded pipeline. It can skip agents, and tracks call history to prevent loops.
+- **Per-user OAuth**: Each user connects their own Spotify account via the auth server. Tokens are stored per user and auto-refresh.
+- **Failsafe design**: Every agent falls back gracefully — expired tokens auto-refresh, API failures fall back to mock data, LLM failures fall back to keyword parsing.
