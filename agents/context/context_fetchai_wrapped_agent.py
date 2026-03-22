@@ -1,7 +1,9 @@
 import json
 import re
 
-from agents.models.config import CONTEXT_SEED
+from openai import OpenAI
+
+from agents.models.config import CONTEXT_SEED, OPENAI_API_KEY
 from agents.models.models import SharedAgentState
 from uagents import Agent, Context
 
@@ -12,6 +14,28 @@ context_agent = Agent(
     mailbox=True,
     publish_agent_details=True,
 )
+
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+CONTEXT_PROMPT = """Analyze this playlist request from a user.
+
+User's request: "{query}"
+
+Respond with ONLY valid JSON, no markdown, no code blocks. Use this exact format:
+{{
+  "mood": "one of: chill, hype, sad, happy, focus, energetic, romantic, angry, mixed",
+  "activity": "one of: studying, working out, driving, sleeping, cooking, hanging out, party, working, listening",
+  "requested_artists": ["list of specific artist names mentioned, empty if none"],
+  "requested_genre": "specific genre/style if mentioned (e.g. edm, jazz, country, rock, rap), empty string if none",
+  "track_count": number between 1-50 (default 10 if not specified)
+}}
+
+Examples:
+- "give me a chill playlist" -> {{"mood": "chill", "activity": "listening", "requested_artists": [], "requested_genre": "", "track_count": 10}}
+- "I want Frank Ocean and Tyler the Creator songs" -> {{"mood": "chill", "activity": "listening", "requested_artists": ["Frank Ocean", "Tyler the Creator"], "requested_genre": "", "track_count": 10}}
+- "15 hype workout songs by Drake" -> {{"mood": "hype", "activity": "working out", "requested_artists": ["Drake"], "requested_genre": "", "track_count": 15}}
+- "get me a playlist of edm songs" -> {{"mood": "hype", "activity": "listening", "requested_artists": [], "requested_genre": "edm", "track_count": 10}}
+- "jazz vibes for cooking" -> {{"mood": "chill", "activity": "cooking", "requested_artists": [], "requested_genre": "jazz", "track_count": 10}}"""
 
 MOOD_KEYWORDS = {
     "chill": ["chill", "relax", "calm", "mellow", "laid back", "easy", "peaceful", "soft"],
@@ -36,7 +60,7 @@ ACTIVITY_KEYWORDS = {
 }
 
 
-def parse_mood(query: str) -> str:
+def parse_mood_fallback(query: str) -> str:
     query_lower = query.lower()
     for mood, keywords in MOOD_KEYWORDS.items():
         for kw in keywords:
@@ -45,7 +69,7 @@ def parse_mood(query: str) -> str:
     return "chill"
 
 
-def parse_activity(query: str) -> str:
+def parse_activity_fallback(query: str) -> str:
     query_lower = query.lower()
     for activity, keywords in ACTIVITY_KEYWORDS.items():
         for kw in keywords:
@@ -54,7 +78,7 @@ def parse_activity(query: str) -> str:
     return "listening"
 
 
-def parse_track_count(query: str) -> int:
+def parse_track_count_fallback(query: str) -> int:
     match = re.search(r"(\d+)\s+\w*\s*(song|track|songs|tracks)", query.lower())
     if not match:
         match = re.search(r"(\d+)\s*(song|track|songs|tracks)", query.lower())
@@ -67,12 +91,23 @@ def parse_track_count(query: str) -> int:
 def context_workflow(state: SharedAgentState) -> SharedAgentState:
     data = json.loads(state.pipeline_data)
 
-    context = {
-        "mood": parse_mood(state.query),
-        "activity": parse_activity(state.query),
-        "track_count": parse_track_count(state.query),
-        "raw_query": state.query,
-    }
+    try:
+        prompt = CONTEXT_PROMPT.format(query=state.query)
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        context = json.loads(response.choices[0].message.content.strip())
+        context["raw_query"] = state.query
+    except Exception as e:
+        print(f"OpenAI context parsing failed, using fallback: {e}")
+        context = {
+            "mood": parse_mood_fallback(state.query),
+            "activity": parse_activity_fallback(state.query),
+            "requested_artists": [],
+            "track_count": parse_track_count_fallback(state.query),
+            "raw_query": state.query,
+        }
 
     data["context"] = context
     state.pipeline_data = json.dumps(data)
