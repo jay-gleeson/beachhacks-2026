@@ -1,4 +1,4 @@
-.PHONY: orchestrator spotify taste context discovery playlist
+.PHONY: orchestrator spotify taste context discovery playlist auth
 
 orchestrator:
 	PYTHONPATH=agents .venv/bin/python -m agents.orchestrator.orchestrator_fetchai_wrapped_agent
@@ -17,3 +17,6 @@ discovery:
 
 playlist:
 	PYTHONPATH=agents .venv/bin/python -m agents.playlist.playlist_fetchai_wrapped_agent
+
+auth:
+	.venv/bin/python spotify_auth_server.py

@@ -5,6 +5,7 @@ from uagents import Context, Protocol
 from agents.models.config import SPOTIFY_ADDRESS
 from agents.models.models import SharedAgentState
 from agents.services.state_service import state_service
+from agents.services.spotify_service import has_user_token, get_auth_url
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
     ChatMessage,
@@ -29,6 +30,28 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     ctx.logger.info(f"Received: {text}")
 
     chat_session_id = str(ctx.session)
+
+    # Check if user has connected their Spotify
+    if not has_user_token(sender):
+        auth_url = get_auth_url(sender)
+        response = (
+            f"Welcome! To create a personalized playlist, I need access to your Spotify account.\n\n"
+            f"Click here to connect: {auth_url}\n\n"
+            f"Once connected, send your request again!"
+        )
+        await ctx.send(
+            sender,
+            ChatMessage(
+                timestamp=datetime.now(tz=timezone.utc),
+                msg_id=uuid4(),
+                content=[
+                    TextContent(type="text", text=response),
+                    EndSessionContent(type="end-session"),
+                ],
+            ),
+        )
+        return
+
     state = state_service.get_state(chat_session_id)
 
     if state is None:
