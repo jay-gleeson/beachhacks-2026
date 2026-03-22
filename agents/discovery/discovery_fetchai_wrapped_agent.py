@@ -34,10 +34,10 @@ def discover_tracks(top_artists: list[str], taste: dict, context: dict, track_co
         # User asked for specific artists — prioritize those
         for artist in requested_artists:
             try:
-                query = f"artist:{artist}"
+                query = f'artist:"{artist}"'
                 tracks = search_tracks(sp, query, limit=10)
                 for t in tracks:
-                    if t["uri"] not in seen_uris:
+                    if t["uri"] not in seen_uris and artist.lower() in t["artist"].lower():
                         seen_uris.add(t["uri"])
                         candidate_tracks.append(t)
             except Exception as e:
@@ -65,29 +65,22 @@ def discover_tracks(top_artists: list[str], taste: dict, context: dict, track_co
         except Exception as e:
             print(f"[DEBUG] Search failed for {requested_genre} {mood}: {e}")
     else:
-        # No specific request — use their top artists
-        for artist in top_artists[:8]:
+        # No specific request — use their top artists heavily
+        # Search more artists with more tracks each for variety
+        artists_to_search = min(len(top_artists), 15)
+        tracks_per_artist = max(3, track_count // artists_to_search + 1)
+
+        for artist in top_artists[:artists_to_search]:
             try:
-                query = f"artist:{artist}"
-                tracks = search_tracks(sp, query, limit=5)
+                query = f'artist:"{artist}"'
+                tracks = search_tracks(sp, query, limit=min(tracks_per_artist, 10))
+                # Filter: only keep tracks where the artist name actually matches
                 for t in tracks:
-                    if t["uri"] not in seen_uris:
+                    if t["uri"] not in seen_uris and artist.lower() in t["artist"].lower():
                         seen_uris.add(t["uri"])
                         candidate_tracks.append(t)
             except Exception as e:
                 print(f"[DEBUG] Search failed for artist {artist}: {e}")
-
-        # Search by taste genres + mood for discovery
-        for genre in genres[:2]:
-            try:
-                query = f"genre:{genre} {mood}"
-                tracks = search_tracks(sp, query, limit=5)
-                for t in tracks:
-                    if t["uri"] not in seen_uris:
-                        seen_uris.add(t["uri"])
-                        candidate_tracks.append(t)
-            except Exception as e:
-                print(f"[DEBUG] Search failed for genre {genre}: {e}")
 
     # Shuffle for variety and trim
     random.shuffle(candidate_tracks)
