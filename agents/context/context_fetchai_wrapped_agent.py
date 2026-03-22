@@ -60,7 +60,7 @@ def parse_track_count(query: str) -> int:
         match = re.search(r"(\d+)\s*(song|track|songs|tracks)", query.lower())
     if match:
         count = int(match.group(1))
-        return min(max(count, 1), 20)
+        return min(max(count, 1), 50)
     return 10
 
 
