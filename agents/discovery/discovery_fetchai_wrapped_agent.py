@@ -1,10 +1,9 @@
 import json
 import random
 
-import requests
-
-from agents.models.config import DISCOVERY_SEED, SPOTIFY_TOKEN
+from agents.models.config import DISCOVERY_SEED
 from agents.models.models import SharedAgentState
+from agents.services.spotify_service import get_spotify_client, search_tracks
 from agents.discovery.song_pool import MOCK_SONGS
 from uagents import Agent, Context
 
@@ -17,48 +16,42 @@ discovery_agent = Agent(
 )
 
 
-def get_related_tracks(artist_ids: list[str], token: str, track_count: int) -> list[dict]:
-    """Find tracks by getting related artists and their top tracks."""
-    headers = {"Authorization": f"Bearer {token}"}
-    candidate_tracks = []
-
-    # Get related artists for top 2-3 seed artists
-    related_artist_ids = []
-    for artist_id in artist_ids[:3]:
-        try:
-            res = requests.get(
-                f"https://api.spotify.com/v1/artists/{artist_id}/related-artists",
-                headers=headers,
-            ).json()
-            for artist in res.get("artists", [])[:5]:
-                related_artist_ids.append(artist["id"])
-        except Exception as e:
-            print(f"[DEBUG] Failed to get related artists for {artist_id}: {e}")
-
-    if not related_artist_ids:
+def discover_tracks(top_artists: list[str], taste: dict, context: dict, track_count: int) -> list[dict]:
+    """Search Spotify for tracks based on the user's taste and requested mood."""
+    sp = get_spotify_client()
+    if not sp:
         return []
 
-    # Shuffle and pick a subset for variety
-    random.shuffle(related_artist_ids)
-    selected_artists = related_artist_ids[:6]
+    mood = context.get("mood", "chill")
+    genres = taste.get("all_genres", [])
+    candidate_tracks = []
+    seen_uris = set()
 
-    # Get top tracks for each selected related artist
-    for artist_id in selected_artists:
+    # Search by top artists (most personalized)
+    for artist in top_artists[:3]:
         try:
-            res = requests.get(
-                f"https://api.spotify.com/v1/artists/{artist_id}/top-tracks",
-                headers=headers,
-            ).json()
-            for track in res.get("tracks", [])[:3]:
-                candidate_tracks.append({
-                    "title": track["name"],
-                    "artist": track["artists"][0]["name"],
-                    "album": track["album"]["name"],
-                })
+            query = f"artist:{artist}"
+            tracks = search_tracks(sp, query, limit=5)
+            for t in tracks:
+                if t["uri"] not in seen_uris:
+                    seen_uris.add(t["uri"])
+                    candidate_tracks.append(t)
         except Exception as e:
-            print(f"[DEBUG] Failed to get top tracks for {artist_id}: {e}")
+            print(f"[DEBUG] Search failed for artist {artist}: {e}")
 
-    # Shuffle and trim to requested count
+    # Search by genres + mood for discovery
+    for genre in genres[:2]:
+        try:
+            query = f"genre:{genre} {mood}"
+            tracks = search_tracks(sp, query, limit=5)
+            for t in tracks:
+                if t["uri"] not in seen_uris:
+                    seen_uris.add(t["uri"])
+                    candidate_tracks.append(t)
+        except Exception as e:
+            print(f"[DEBUG] Search failed for genre {genre}: {e}")
+
+    # Shuffle for variety and trim
     random.shuffle(candidate_tracks)
     return candidate_tracks[:track_count]
 
@@ -66,17 +59,18 @@ def get_related_tracks(artist_ids: list[str], token: str, track_count: int) -> l
 def discovery_workflow(state: SharedAgentState) -> SharedAgentState:
     data = json.loads(state.pipeline_data)
     profile = data.get("spotify_profile", {})
+    taste = data.get("taste_profile", {})
     context = data.get("context", {})
-    artist_ids = profile.get("top_artist_ids", [])
+    top_artists = profile.get("top_artists", [])
     track_count = context.get("track_count", 10)
 
     recommendations = []
 
     try:
-        if SPOTIFY_TOKEN and artist_ids:
-            recommendations = get_related_tracks(artist_ids, SPOTIFY_TOKEN, track_count)
+        if top_artists:
+            recommendations = discover_tracks(top_artists, taste, context, track_count)
     except Exception as e:
-        print(f"Discovery API failed, falling back to mock: {e}")
+        print(f"Discovery failed, falling back to mock: {e}")
 
     # Fallback to mock songs if we got nothing
     if not recommendations:

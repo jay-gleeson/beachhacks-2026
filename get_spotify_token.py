@@ -16,7 +16,7 @@ load_dotenv()
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/callback")
-SCOPES = "user-top-read"
+SCOPES = "user-top-read playlist-modify-public playlist-modify-private"
 
 auth_code = None
 
@@ -50,6 +50,7 @@ auth_url = (
             "response_type": "code",
             "redirect_uri": SPOTIFY_REDIRECT_URI,
             "scope": SCOPES,
+            "show_dialog": "true",
         }
     )
 )

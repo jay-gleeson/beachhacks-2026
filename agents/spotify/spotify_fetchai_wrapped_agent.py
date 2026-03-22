@@ -1,9 +1,8 @@
 import json
 
-import requests
-
-from agents.models.config import SPOTIFY_SEED, SPOTIFY_TOKEN
+from agents.models.config import SPOTIFY_SEED
 from agents.models.models import SharedAgentState
+from agents.services.spotify_service import get_spotify_client, get_user_top_artists, get_user_top_tracks
 from uagents import Agent, Context
 
 spotify_agent = Agent(
@@ -13,7 +12,6 @@ spotify_agent = Agent(
     mailbox=True,
     publish_agent_details=True,
 )
-
 
 MOCK_PROFILE = {
     "top_artists": ["Tame Impala", "Kendrick Lamar", "SZA", "Frank Ocean", "Bonobo"],
@@ -34,36 +32,17 @@ MOCK_PROFILE = {
 }
 
 
-def get_real_profile(token: str) -> dict:
-    headers = {"Authorization": f"Bearer {token}"}
-
-    artists_res = requests.get(
-        "https://api.spotify.com/v1/me/top/artists",
-        headers=headers,
-        params={"limit": 5},
-    ).json()
-
-    tracks_res = requests.get(
-        "https://api.spotify.com/v1/me/top/tracks",
-        headers=headers,
-        params={"limit": 5},
-    ).json()
-
-    top_artists = [a["name"] for a in artists_res["items"]]
-    top_artist_ids = [a["id"] for a in artists_res["items"]]
-    top_tracks = [t["name"] for t in tracks_res["items"]]
-
-    return {
-        "top_artists": top_artists,
-        "top_artist_ids": top_artist_ids,
-        "top_tracks": top_tracks,
-    }
-
-
 def spotify_workflow(state: SharedAgentState) -> SharedAgentState:
     try:
-        if SPOTIFY_TOKEN:
-            profile = get_real_profile(SPOTIFY_TOKEN)
+        sp = get_spotify_client()
+        if sp:
+            artists = get_user_top_artists(sp)
+            top_tracks = get_user_top_tracks(sp)
+            profile = {
+                "top_artists": [a["name"] for a in artists],
+                "top_artist_ids": [a["id"] for a in artists],
+                "top_tracks": top_tracks,
+            }
         else:
             profile = MOCK_PROFILE
     except Exception as e:
