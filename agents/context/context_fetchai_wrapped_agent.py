@@ -55,7 +55,9 @@ def parse_activity(query: str) -> str:
 
 
 def parse_track_count(query: str) -> int:
-    match = re.search(r"(\d+)\s*(song|track|songs|tracks)", query.lower())
+    match = re.search(r"(\d+)\s+\w*\s*(song|track|songs|tracks)", query.lower())
+    if not match:
+        match = re.search(r"(\d+)\s*(song|track|songs|tracks)", query.lower())
     if match:
         count = int(match.group(1))
         return min(max(count, 1), 20)
