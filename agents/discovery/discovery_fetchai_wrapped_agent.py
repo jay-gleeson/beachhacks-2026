@@ -16,40 +16,78 @@ discovery_agent = Agent(
 )
 
 
-def discover_tracks(top_artists: list[str], taste: dict, context: dict, track_count: int) -> list[dict]:
+def discover_tracks(top_artists: list[str], taste: dict, context: dict, track_count: int, user_address: str = "") -> list[dict]:
     """Search Spotify for tracks based on the user's taste and requested mood."""
-    sp = get_spotify_client()
+    sp = get_spotify_client(user_address=user_address)
     if not sp:
         return []
 
     mood = context.get("mood", "chill")
     genres = taste.get("all_genres", [])
+    requested_artists = context.get("requested_artists", [])
     candidate_tracks = []
     seen_uris = set()
 
-    # Search by top artists (most personalized)
-    for artist in top_artists[:3]:
-        try:
-            query = f"artist:{artist}"
-            tracks = search_tracks(sp, query, limit=5)
-            for t in tracks:
-                if t["uri"] not in seen_uris:
-                    seen_uris.add(t["uri"])
-                    candidate_tracks.append(t)
-        except Exception as e:
-            print(f"[DEBUG] Search failed for artist {artist}: {e}")
+    requested_genre = context.get("requested_genre", "")
 
-    # Search by genres + mood for discovery
-    for genre in genres[:2]:
+    if requested_artists:
+        # User asked for specific artists — prioritize those
+        for artist in requested_artists:
+            try:
+                query = f"artist:{artist}"
+                tracks = search_tracks(sp, query, limit=10)
+                for t in tracks:
+                    if t["uri"] not in seen_uris:
+                        seen_uris.add(t["uri"])
+                        candidate_tracks.append(t)
+            except Exception as e:
+                print(f"[DEBUG] Search failed for requested artist {artist}: {e}")
+    elif requested_genre:
+        # User asked for a specific genre — search by genre
         try:
-            query = f"genre:{genre} {mood}"
-            tracks = search_tracks(sp, query, limit=5)
+            query = f"genre:{requested_genre}"
+            tracks = search_tracks(sp, query, limit=track_count + 10)
             for t in tracks:
                 if t["uri"] not in seen_uris:
                     seen_uris.add(t["uri"])
                     candidate_tracks.append(t)
         except Exception as e:
-            print(f"[DEBUG] Search failed for genre {genre}: {e}")
+            print(f"[DEBUG] Search failed for genre {requested_genre}: {e}")
+
+        # Also try mood + genre combo for variety
+        try:
+            query = f"{requested_genre} {mood}"
+            tracks = search_tracks(sp, query, limit=track_count)
+            for t in tracks:
+                if t["uri"] not in seen_uris:
+                    seen_uris.add(t["uri"])
+                    candidate_tracks.append(t)
+        except Exception as e:
+            print(f"[DEBUG] Search failed for {requested_genre} {mood}: {e}")
+    else:
+        # No specific request — use their top artists
+        for artist in top_artists[:8]:
+            try:
+                query = f"artist:{artist}"
+                tracks = search_tracks(sp, query, limit=5)
+                for t in tracks:
+                    if t["uri"] not in seen_uris:
+                        seen_uris.add(t["uri"])
+                        candidate_tracks.append(t)
+            except Exception as e:
+                print(f"[DEBUG] Search failed for artist {artist}: {e}")
+
+        # Search by taste genres + mood for discovery
+        for genre in genres[:2]:
+            try:
+                query = f"genre:{genre} {mood}"
+                tracks = search_tracks(sp, query, limit=5)
+                for t in tracks:
+                    if t["uri"] not in seen_uris:
+                        seen_uris.add(t["uri"])
+                        candidate_tracks.append(t)
+            except Exception as e:
+                print(f"[DEBUG] Search failed for genre {genre}: {e}")
 
     # Shuffle for variety and trim
     random.shuffle(candidate_tracks)
@@ -68,7 +106,7 @@ def discovery_workflow(state: SharedAgentState) -> SharedAgentState:
 
     try:
         if top_artists:
-            recommendations = discover_tracks(top_artists, taste, context, track_count)
+            recommendations = discover_tracks(top_artists, taste, context, track_count, state.user_sender_address)
     except Exception as e:
         print(f"Discovery failed, falling back to mock: {e}")
 
